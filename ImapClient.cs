@@ -1377,8 +1377,8 @@ namespace S22.Imap {
 				SelectMailbox(mailbox);
 				StringBuilder builder = new StringBuilder();
 				string tag = GetTag();
-				string response = SendCommandGetResponse(tag + "UID FETCH " + uid + " (BODY" +
-					(seen ? null : ".PEEK") + "[HEADER])", false);
+                string response = SendCommandGetResponse(tag + "UID FETCH " + uid + " (BODY" +
+                    (seen ? null : ".PEEK") + "[HEADER])", false);
 				while (response.StartsWith("*")) {
 					Match m = Regex.Match(response, @"\* \d+ FETCH .* {(\d+)}");
 					if (m.Success) {
@@ -1397,26 +1397,62 @@ namespace S22.Imap {
 			}
 		}
 
-		/// <summary>
-		/// Retrieves the body structure for the mail message with the specified unique identifier (UID).
-		/// </summary>
-		/// <param name="uid">The UID of the mail message to retrieve the body structure for.</param>
-		/// <param name="mailbox">The mailbox the messages will be retrieved from. If this parameter is
+        /// <summary>
+        /// Retrieves the X-GM-MSGID message id for the mail message with the specified unique identifier (UID).
+        /// </summary>
+        /// <param name="uid">The UID of the mail message to retrieve the mail header for.</param>
+        /// <param name="seen">Set this to true to set the \Seen flag for the fetched messages on the
+		/// server.</param>
+        /// <param name="mailbox">The mailbox the messages will be retrieved from. If this parameter is
 		/// omitted, the value of the DefaultMailbox property is used to determine the mailbox to
 		/// operate on.</param>
-		/// <returns>A string containing the raw body structure of the mail message with the specified
+        /// <returns>A string containing X-GM-MSGID message id of the mail message with the specified
 		/// UID.</returns>
-		/// <exception cref="BadServerResponseException">The body structure could not be fetched. The
-		/// message property of the exception contains the error message returned by the
-		/// server.</exception>
-		/// <exception cref="ObjectDisposedException">The ImapClient object has been disposed.</exception>
-		/// <exception cref="IOException">There was a failure writing to or reading from the
-		/// network.</exception>
-		/// <exception cref="NotAuthenticatedException">The method was called in non-authenticated
-		/// state, i.e. before logging in.</exception>
-		/// <remarks>A body structure is a textual description of the layout of a mail message. It is
-		/// described in some detail in RFC 3501 under 7.4.2 FETCH response.</remarks>
-		string GetBodystructure(uint uid, string mailbox = null) {
+        public string GetGmailMsgId(uint uid, bool seen = true, string mailbox = null)
+        {
+            AssertValid();
+            lock (sequenceLock)
+            {
+                PauseIdling();
+                SelectMailbox(mailbox);
+                StringBuilder builder = new StringBuilder();
+                string tag = GetTag();
+                string response = SendCommandGetResponse(tag + "UID FETCH " + uid + " (X-GM-MSGID)", false);
+                while (response.StartsWith("*"))
+                {
+                    Match m = Regex.Match(response, @"\* \d+ FETCH \(X-GM-MSGID ([0-9]+) UID ([0-9]+)\)");
+                    if (m.Success) {
+                        builder.Append(m.Groups[1].Value);
+                    }
+                    response = GetResponse(false);
+                }
+                ResumeIdling();
+                if (!IsResponseOK(response, tag))
+                    throw new BadServerResponseException(response);
+                return builder.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Retrieves the body structure for the mail message with the specified unique identifier (UID).
+        /// </summary>
+        /// <param name="uid">The UID of the mail message to retrieve the body structure for.</param>
+        /// <param name="mailbox">The mailbox the messages will be retrieved from. If this parameter is
+        /// omitted, the value of the DefaultMailbox property is used to determine the mailbox to
+        /// operate on.</param>
+        /// <returns>A string containing the raw body structure of the mail message with the specified
+        /// UID.</returns>
+        /// <exception cref="BadServerResponseException">The body structure could not be fetched. The
+        /// message property of the exception contains the error message returned by the
+        /// server.</exception>
+        /// <exception cref="ObjectDisposedException">The ImapClient object has been disposed.</exception>
+        /// <exception cref="IOException">There was a failure writing to or reading from the
+        /// network.</exception>
+        /// <exception cref="NotAuthenticatedException">The method was called in non-authenticated
+        /// state, i.e. before logging in.</exception>
+        /// <remarks>A body structure is a textual description of the layout of a mail message. It is
+        /// described in some detail in RFC 3501 under 7.4.2 FETCH response.</remarks>
+        string GetBodystructure(uint uid, string mailbox = null) {
 			AssertValid();
 			lock (sequenceLock) {
 				PauseIdling();
